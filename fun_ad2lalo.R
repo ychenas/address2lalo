@@ -4,57 +4,6 @@
 # convert the address to latitude and longitude
 # 
 
-#In this first example we will geocode a few addresses using the geocode() function and plot them on a map with ggplot.
-
-#library(dplyr, warn.conflicts = FALSE)
-#library(tidygeocoder)
-
-# create a dataframe with addresses
-#some_addresses <- tibble::tribble(
-#~name,                  ~addr,
-#"White House",          "1600 Pennsylvania Ave NW, Washington, DC",
-#"Transamerica Pyramid", "600 Montgomery St, San Francisco, CA 94111",     
-#"Willis Tower",         "233 S Wacker Dr, Chicago, IL 60606",
-#"My Home",              "128 Academia Road, Section 2, Nankang, Taipei 115201"                                  
-#)
-
-# geocode the addresses
-#lat_longs <- some_addresses %>%
-#  geocode(addr, method = 'osm', lat = latitude , long = longitude)
-#  geocode(addr, method = 'osm', lat = latitude , long = longitude)
-#
-
-#> Passing 3 addresses to the Nominatim single address geocoder
-#> Query completed in: 3 seconds
-#print(lat_longs)
-# method can use arcgis, osm, bing, google 
-
-#> Passing 3 addresses to the Nominatim single address geocoder
-#> Query completed in: 3 seconds
-
-
-#library(ggmap)
-#library(dplyr)
-
-
-# 地址轉換函數
-#address_to_latlon <- function(address) {
-#  result <- geocode(address, output = "latlon", source = "google", language = "zh-TW")
-#  return(result)
-#}
-
-# 測試範例地址
-#address = "台北市南港區研究院路二段128號"
-
-#ddress <- "Taipei 101, Taipei, Taiwan"
-#coordinates <- address_to_latlon(address)
-
-# 顯示結果
-
-#install.packages("httr")
-#install.packages("jsonlite")
-#install.packages("ggmap")
-
  # 載入套件
   library(httr)
   library(jsonlite)
@@ -73,7 +22,7 @@ addr_to_lalo <- function(addr = c("中央研究院") )
   library(sf)
   library(stars)
  # 設定 Google Maps API 金鑰
-  api_key <- read.csv("api.key.txt",header=FALSE)$V1
+  api_key <- read.csv("./api.key.txt",header=FALSE)$V1
 
   # 將地址進行 URL 編碼
   encoded_address <- URLencode(addr)
@@ -116,17 +65,21 @@ addr_to_lalo <- function(addr = c("中央研究院") )
 }#end of addr2lalo
 
 # 顯示地圖的函數 輸入台灣的地址
-addr_map <- function(addr=c("台北101"), zoom = 15)
+addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01)
  {
- 
-  addr=c("台北101")
-  zoom=15
+# INIT
+#  addr=c("台北101")
+#  zoom=14
+#  rad=0.01
+# 設定 Google Maps API 金鑰
+  api_key <- read.csv("./api.key.txt",header=FALSE)$V1
+  ggmap::register_google(key=api_key)
   #利用Google Sataic Map API 功能 進行地址傳換機緯度的變更
   # 取得中心位置的地圖
   cod <- addr_to_lalo(addr=addr)
   # get map from google
   map <- get_map(location = c(lon = cod$lon, lat = cod$lat), zoom = zoom, source = "google", maptype = "satellite")
-  map_proj <- st_crs(map)
+  #map_proj <- st_crs(map)
   
   base_map <- ggmap(map)
   
@@ -136,55 +89,69 @@ addr_map <- function(addr=c("台北101"), zoom = 15)
   st_sfc(crs = 3857)
   #st_transform(crs = st_crs(3857))  # Transform to match the map's projection
   # Define the radius of the circle (in meters)
-  radius <- 0.005  # 500 m
+  radius <- rad # 1000 m
   # Create a circular buffer around the center point
   circle <- st_buffer(center_point, dist = radius)
   circle_sf <- st_transform(circle, crs = 3857) 
 
   #讀取GEOTIFF 檔案並傳換座標
-#  tiff_file <- read_stars("2023_236_210_tree20.tif")
-#  st_crs(tiff_file) <- 3826 #TWD97/WGS80
+  tiff_file <- read_stars("./2023_all_grid_wgs84.tif")
+  #tiff_file <- read_stars("./2023_236_210_tree20_wgs84.tif")
+  st_crs(tiff_file) <- st_crs(3857)  #TWD97/WGS80
   #coordinate transform 
- # tiff_trans <- st_transform(tiff_file, crs=3857) #WGS84
+  #st_warp(src=tiff_file,dest= tiff_trans, crs=st_crs('OGC:CRS84') ) #WGS84
   # 將 TIFF 投影轉換以符合遮罩
   # Transform to the new CRS
+  #tiff_trans <- rast(tiff_trans)
 
   # 使用圓形遮罩裁剪 TIFF 檔案
- # tiff_cropped <-st_crop(tiff_trans, circle_sf) 
-  
+  tiff_cropped <-st_crop(tiff_file, circle_sf) 
+ 
+  #計算比例
+  library(dplyr)
+  ## Convert the raster values to a data frame to analyze value frequencies
+  raster_values <- as.data.frame(tiff_cropped, as_points = FALSE)
+  # Rename the value column for easier access
+  names(raster_values)[3] <- "value"
+  # Remove NA values
+  raster_values <- raster_values %>% filter(!is.na(value))
+  # Calculate the count and percentage of each unique value
+  value_counts <- raster_values %>%
+    dplyr::group_by(value) %>%
+    dplyr::summarize(count = n()) %>%
+    dplyr::mutate(percentage = (count / sum(count)) * 100)
+  # Print the result
+  print(value_counts)
+  rad_for = round(value_counts[1,3],digits=1)
+  rad_urb = round(value_counts[2,3],digits=1)
+  rad_wat = round(value_counts[3,3],digits=1)
+  rad_agr = round(value_counts[4,3],digits=1)
+  rad_gra = round((value_counts[5,3] + value_counts[6,3]),digits=1)
+  print(paste("森林:", rad_for,"%","建物:", rad_urb,"%", "農田:", rad_agr,
+          "%","綠地:", rad_gra,"%","水體:", rad_wat,"%",sep=" "))
+  # 給定調色盤
+   colors <- c("#439c6e","#e86d5f","#8bd2e8","#f0d86e","#999999","#99ad50","#383838") 
   # 繪製地圖並加上查詢地點的標記
   # Plot the circle on the map
   map_with_circle <- base_map +
-   geom_sf(data = circle_sf, fill = NA, color = "red",  size=1, linewidth=2,  inherit.aes = FALSE) + #顯示圓邊界 
-#   geom_stars(data = tiff_cropped, alpha = 0.6) +
-#   scale_fill_viridis_c(option = "plasma") +
-   geom_point(aes(x = lon, y = lat), data=cod, color = "red", size=1, shape=21, stroke=2) +
-   labs(title = paste("查詢地址:",addr,", TWD97座標(",round(x=cod$x,digits=1),",", round(x=cod$y,digits=1),")",sep=""),
-        x = "經度",
-        y = "緯度")
+    geom_stars(data = tiff_cropped, alpha = 0.7) +
+    geom_sf(data = circle_sf, fill = NA, color = "gray",  size=1, linewidth=1,  inherit.aes = FALSE) + #顯示圓邊界 
+    #scale_fill_viridis_c(option = "plasma") +
+    #scale_fill_manual(values=c("blue","orange","forestgreen","red","green","gray")) +
+    scale_fill_gradientn(colours= colors[c(1,2,3,4,5,6)] ) +
+    geom_point(aes(x = lon, y = lat), data=cod, color = "yellow", size=2, shape=21, stroke=2) +
+    labs(title =  paste("森林:", rad_for,"%",", 綠地+農田:", rad_agr+rad_gra,"%",",
+                         水體:", rad_wat,"%",", 建築+裸露:", rad_urb,"%",sep=""),
+          caption = paste("查詢地址:",addr,", TWD97座標(",round(x=cod$x,digits=1),",", round(x=cod$y,digits=1),")",sep=""),
+          x = "經度(WGS84)",  y = "緯度(WGS84)") +
+    #移除legend 
+    theme(legend.position="none")+
+    coord_sf(datum = st_crs(circle_sf))
+  
   #plot the result
   print(map_with_circle)
+
  }#addr_map
-
-# Load the raster package
-#library(raster)
-
-# Read or create a raster object
-#raster_data <- raster("./2023_236_210_tree20.tif")
-
-# Set the initial CRS if necessary (e.g., WGS84)
-#crs(raster_data) <- CRS("+init=epsg:3826")
-
-# Define the new CRS (e.g., UTM Zone 33N with EPSG:32633)
-#new_crs <- CRS("+init=epsg:3857")
-
-# Transform to the new CRS
-#raster_transformed <- projectRaster(raster_data, crs = new_crs)
-
-
-#plot(base_map) 
-#plot(raster_transformed, add = T, legend = F, col = rev(rainbow(10, alpha = 0.35)))
-
 
 # 顯示地圖的函數 輸入經緯度
 lalo_map <- function(lat=c(23), lon=c(121), zoom = 15) 
@@ -206,7 +173,6 @@ lalo_map <- function(lat=c(23), lon=c(121), zoom = 15)
          y = "緯度")
     
    }#end of lalo_map 
-
 
 # 測試範例地址 (中文)
 #address <- "台北市, 南港區, 研究院路二段, 128號, 台灣"
