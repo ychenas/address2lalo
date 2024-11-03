@@ -65,7 +65,7 @@ addr_to_lalo <- function(addr = c("中央研究院") )
 }#end of addr2lalo
 
 # 顯示地圖的函數 輸入台灣的地址
-addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01)
+addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01, year=2023)
  {
 # INIT
 #  addr=c("台北101")
@@ -95,8 +95,8 @@ addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01)
   circle_sf <- st_transform(circle, crs = 3857) 
 
   #讀取GEOTIFF 檔案並傳換座標
-  tiff_file <- read_stars("./2023_all_grid_wgs84.tif")
-  #tiff_file <- read_stars("./2023_236_210_tree20_wgs84.tif")
+  tiff_file <- read_stars(paste("./",year,"_all_grid_wgs84.tif",sep=""))
+ # tiff_file <- read_stars("./2023_236_210_tree20_wgs84.tif")
   st_crs(tiff_file) <- st_crs(3857)  #TWD97/WGS80
   #coordinate transform 
   #st_warp(src=tiff_file,dest= tiff_trans, crs=st_crs('OGC:CRS84') ) #WGS84
@@ -114,37 +114,52 @@ addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01)
   # Rename the value column for easier access
   names(raster_values)[3] <- "value"
   # Remove NA values
-  raster_values <- raster_values %>% filter(!is.na(value))
+  raster_values <- raster_values %>% filter(!is.na(value)) 
   # Calculate the count and percentage of each unique value
   value_counts <- raster_values %>%
     dplyr::group_by(value) %>%
     dplyr::summarize(count = n()) %>%
     dplyr::mutate(percentage = (count / sum(count)) * 100)
-  # Print the result
-  print(value_counts)
-  rad_for = round(value_counts[1,3],digits=1)
-  rad_urb = round(value_counts[2,3],digits=1)
-  rad_wat = round(value_counts[3,3],digits=1)
-  rad_agr = round(value_counts[4,3],digits=1)
-  rad_gra = round((value_counts[5,3] + value_counts[6,3]),digits=1)
-  print(paste("森林:", rad_for,"%","建物:", rad_urb,"%", "農田:", rad_agr,
-          "%","綠地:", rad_gra,"%","水體:", rad_wat,"%",sep=" "))
+
   # 給定調色盤
-   colors <- c("#439c6e","#e86d5f","#8bd2e8","#f0d86e","#999999","#99ad50","#383838") 
+ if (value_counts[1]$value[1] == 0) {
+    colors <- c("0"="lightgray","1"="#439c6e","2"="#e86d5f","3"="#8bd2e8","4"="#f0d86e","5"="#999999","6"="#99ad50")
+    print(value_counts)
+    rad_for = round(value_counts[2,3],digits=1)
+    rad_urb = round(value_counts[3,3],digits=1)
+    rad_wat = round(value_counts[4,3],digits=1)
+    rad_agr = round(value_counts[5,3],digits=1)
+    rad_gra = round((value_counts[6,3] + value_counts[6,3]),digits=1)
+    print(paste("森林:", rad_for,"%","建物:", rad_urb,"%", "農田:", rad_agr,"%","綠地:", rad_gra,"%","水體:", rad_wat,"%",sep=" "))
+    }else{
+    colors <- c("1"="#439c6e","2"="#e86d5f","3"="#8bd2e8","4"="#f0d86e","5"="#999999","6"="#99ad50")
+    # Print the result
+    print(value_counts)
+    rad_for = round(value_counts[1,3],digits=1)
+    rad_urb = round(value_counts[2,3],digits=1)
+    rad_wat = round(value_counts[3,3],digits=1)
+    rad_agr = round(value_counts[4,3],digits=1)
+    rad_gra = round((value_counts[5,3] + value_counts[6,3]),digits=1)
+    print(paste("森林:", rad_for,"%","建物:", rad_urb,"%", "農田:", rad_agr,"%","綠地:", rad_gra,"%","水體:", rad_wat,"%",sep=" "))
+    
+    
+  }
+  # colors <- c("1"="#439c6e","#e86d5f","#8bd2e8","#f0d86e","#999999","#99ad50","#383838") 
   # 繪製地圖並加上查詢地點的標記
   # Plot the circle on the map
   map_with_circle <- base_map +
     geom_stars(data = tiff_cropped, alpha = 0.7) +
     geom_sf(data = circle_sf, fill = NA, color = "gray",  size=1, linewidth=1,  inherit.aes = FALSE) + #顯示圓邊界 
-    #scale_fill_viridis_c(option = "plasma") +
-    #scale_fill_manual(values=c("blue","orange","forestgreen","red","green","gray")) +
-    scale_fill_gradientn(colours= colors[c(1,2,3,4,5,6)] ) +
-    geom_point(aes(x = lon, y = lat), data=cod, color = "yellow", size=2, shape=21, stroke=2) +
-    labs(title =  paste("森林:", rad_for,"%",", 綠地+農田:", rad_agr+rad_gra,"%",",
-                         水體:", rad_wat,"%",", 建築+裸露:", rad_urb,"%",sep=""),
-          caption = paste("查詢地址:",addr,", TWD97座標(",round(x=cod$x,digits=1),",", round(x=cod$y,digits=1),")",sep=""),
+   #scale_fill_viridis_c(option = "plasma") +
+   # scale_fill_manual(values=value_colors) +
+   # scale_fill_manual(values = cols, aesthetics = c("colour", "fill")) +
+    scale_fill_gradientn(colours = colors[] ) +
+    geom_point(aes(x = lon, y = lat), data=cod, color = "yellow", size=2, shape=21, stroke=3) +
+     labs(title =  paste("森林:", rad_for,"%", ", 綠地+農田:", rad_agr+rad_gra,"%",", 水體:", rad_wat,"%",", 建築+裸露:", rad_urb,"%",sep=""),
+          caption = paste("查詢年份:",year,", 地址:",addr,", TWD97座標(",round(x=cod$x,digits=1),", ", round(x=cod$y,digits=1),")",sep=""),
           x = "經度(WGS84)",  y = "緯度(WGS84)") +
-    #移除legend 
+  
+      #移除legend 
     theme(legend.position="none")+
     coord_sf(datum = st_crs(circle_sf))
   
