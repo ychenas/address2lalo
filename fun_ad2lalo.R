@@ -95,8 +95,8 @@ addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01, year=2023)
   circle_sf <- st_transform(circle, crs = 3857) 
 
   #讀取GEOTIFF 檔案並傳換座標
-  tiff_file <- read_stars(paste("./",year,"_all_grid_wgs84.tif",sep=""))
- # tiff_file <- read_stars("./2023_236_210_tree20_wgs84.tif")
+  tiff_file <- read_stars(paste("./lu_maps/",year,"_all_grid_wgs84.tif",sep=""))
+  # tiff_file <- read_stars("./lu_maps/2023_236_210_tree20_wgs84.tif")
   st_crs(tiff_file) <- st_crs(3857)  #TWD97/WGS80
   #coordinate transform 
   #st_warp(src=tiff_file,dest= tiff_trans, crs=st_crs('OGC:CRS84') ) #WGS84
@@ -129,7 +129,7 @@ addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01, year=2023)
     rad_urb = round(value_counts[3,3],digits=1)
     rad_wat = round(value_counts[4,3],digits=1)
     rad_agr = round(value_counts[5,3],digits=1)
-    rad_gra = round((value_counts[6,3] + value_counts[6,3]),digits=1)
+    rad_gra = round((value_counts[6,3] + value_counts[7,3]),digits=1)
     print(paste("森林:", rad_for,"%","建物:", rad_urb,"%", "農田:", rad_agr,"%","綠地:", rad_gra,"%","水體:", rad_wat,"%",sep=" "))
     }else{
     colors <- c("1"="#439c6e","2"="#e86d5f","3"="#8bd2e8","4"="#f0d86e","5"="#999999","6"="#99ad50")
@@ -154,13 +154,11 @@ addr_map <- function(addr=c("台北101"), zoom = 14, rad = 0.01, year=2023)
    # scale_fill_manual(values=value_colors) +
    # scale_fill_manual(values = cols, aesthetics = c("colour", "fill")) +
     scale_fill_gradientn(colours = colors[] ) +
-    geom_point(aes(x = lon, y = lat), data=cod, color = "yellow", size=2, shape=21, stroke=3) +
-     labs(title =  paste("森林:", rad_for,"%", ", 綠地+農田:", rad_agr+rad_gra,"%",", 水體:", rad_wat,"%",", 建築+裸露:", rad_urb,"%",sep=""),
-          caption = paste("查詢年份:",year,", 地址:",addr,", TWD97座標(",round(x=cod$x,digits=1),", ", round(x=cod$y,digits=1),")",sep=""),
+    geom_point(aes(x = lon, y = lat), data=cod, color = "yellow", size=1, shape=21, stroke=2) +
+     labs(title =  paste("森林(F):", rad_for,"%", ", 農田/綠地(A/G):", rad_agr+rad_gra,"%",", 水體(W):", rad_wat,"%","裸土/建物(B/B):", rad_urb,"%",sep=""),
+          caption = paste("查詢地址:",addr,",圖資年份:",year,", TWD97-參考座標(",round(x=cod$x,digits=1),", ", round(x=cod$y,digits=1),")",sep=""),
           x = "經度(WGS84)",  y = "緯度(WGS84)") +
-  
-      #移除legend 
-    theme(legend.position="none")+
+    theme(plot.caption = element_text(size = 10), legend.position ="none") +# Adjust size here & 移除legend 
     coord_sf(datum = st_crs(circle_sf))
   
   #plot the result
